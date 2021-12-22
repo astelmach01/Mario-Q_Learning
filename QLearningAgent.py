@@ -56,6 +56,8 @@ class QLearningAgent:
             self.valueIteration()
         except FileNotFoundError:
             print("No q table found")
+            self.q_values = Counter(self.env.action_space.n)
+            self.valueIteration()
 
     def log_episode(self):
         self.episode_rewards.append(self.current_episode_reward)
@@ -119,6 +121,9 @@ class QLearningAgent:
                 self.updateQValue(reward, state, action, next_max)
 
                 state = next_state
+
+                if i > self.iterations - 1000:
+                    self.env.render()
 
                 x_s.add(info["x_pos"])
                 self.current_episode_reward += reward

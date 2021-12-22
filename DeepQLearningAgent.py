@@ -21,7 +21,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 class SkipFrame(gym.Wrapper):
-    def __init__(self, env, skip):
+    def __init__(self, env, skip=4):
         super().__init__(env)
         self._skip = skip
 
