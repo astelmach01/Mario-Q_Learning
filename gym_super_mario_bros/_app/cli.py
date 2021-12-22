@@ -5,8 +5,7 @@ import copy
 from nes_py.wrappers import JoypadSpace
 from nes_py.app.play_human import play_human
 from nes_py.app.play_random import play_random
-from Q_Agent.play import play_q
-from Q_Agent.play import play_double_q
+from play import play_q, play_double_q
 from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, RIGHT_AND_JUMP, TEST
 
 # a key mapping of action spaces to wrap with

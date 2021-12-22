@@ -1,16 +1,14 @@
-from Q_Agent.QLearningAgent import ValueIterationAgent
+from QLearningAgent import QLearningAgent
 import random
-from Q_Agent.DeepQLearningAgent import SkipFrame
+from DeepQLearningAgent import SkipFrame
 import numpy as np
-import json
-from collections import Counter
 import matplotlib.pyplot as plt
 from os.path import exists
 file_name = "q_tables\\double_q"
 
 
 
-class DoubleQLearningAgent(ValueIterationAgent):
+class DoubleQLearningAgent(QLearningAgent):
 
     def __init__(self, env, actions, alpha=.1, gamma=.9, exploration_rate=0, exploration_rate_min=0,
                  exploration_rate_decay=0.9997, iterations=5000):
@@ -26,8 +24,8 @@ class DoubleQLearningAgent(ValueIterationAgent):
         self.moving_average_episode_rewards = []
         self.current_episode_reward = 0.0
         self.period = 20
-        self.agent1 = ValueIterationAgent(env, actions)
-        self.agent2 = ValueIterationAgent(env, actions)
+        self.agent1 = QLearningAgent(env, actions)
+        self.agent2 = QLearningAgent(env, actions)
        # try to load in q table from previously written text file.
        #  try:
        #       values = json.load(open("q_tables\\double_q1st_q_table_new_try.txt"))
