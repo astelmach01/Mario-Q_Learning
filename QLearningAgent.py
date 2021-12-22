@@ -21,7 +21,7 @@ Things you tried
 -declining exploration rate/epsilon
 '''
 
-file_name = 'q_table.txt'
+file_name = ''
 checkpoint_period = 20
 
 class QLearningAgent:
@@ -48,8 +48,14 @@ class QLearningAgent:
         self.save_directory = file_name
 
         # try to load in q table from previously written text file
-        self.q_values = Counter(self.env.action_space.n)
-        self.valueIteration()
+        try:
+            self.q_values = json.load(open(file_name + 'q_table.txt'))
+        except ValueError:
+            print("Issue with loading q table")
+            self.q_values = Counter(self.env.action_space.n)
+            self.valueIteration()
+        except FileNotFoundError:
+            print("No q table found")
 
     def log_episode(self):
         self.episode_rewards.append(self.current_episode_reward)
