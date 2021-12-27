@@ -26,12 +26,6 @@
 # Student side autograding was added by Brad Miller, Nick Hay, and
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
-
-import inspect
-import random
-import sys
-import numpy as np
-
 """
  Data structures useful for implementing SearchAgents
 """
@@ -84,5 +78,7 @@ class Counter(dict):
 
     def __getitem__(self, idx):
         idx = str(idx)
-        self.setdefault(idx, np.zeros(self.size))
+        self.setdefault(idx, list((0, 0)))
         return dict.__getitem__(self, idx)
+
+

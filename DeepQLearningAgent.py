@@ -3,7 +3,6 @@ import gym_super_mario_bros
 import random
 from collections import deque
 
-
 from gym.spaces import Box
 from gym.wrappers import *
 import numpy as np
@@ -14,6 +13,7 @@ from nes_py.wrappers import JoypadSpace
 import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
 from tensorflow import keras
+from keras.models import load_model
 
 print(tf.config.list_physical_devices('GPU'))
 
@@ -73,8 +73,8 @@ class TransposeObservation(gym.ObservationWrapper):
 
 env = gym_super_mario_bros.make('SuperMarioBros-1-1-v0')
 env = JoypadSpace(env, [["right"], ["right", "A"]])
-env = TransposeObservation(FrameStack(ResizeObservation(GrayScaleObservation(
-    SkipFrame(env, skip=4)), shape=84), num_stack=4))
+env = TransposeObservation(FrameStack(GrayScaleObservation(
+    SkipFrame(env, skip=4)), num_stack=4))
 env.seed(42)
 env.action_space.seed(42)
 np.random.seed(42)
@@ -90,13 +90,29 @@ class DoubleDeepQNN(tf.keras.Model):
         super(DoubleDeepQNN, self).__init__()
 
         self.model = models.Sequential()
-        self.model.add(layers.Conv2D(
-            32, (8, 8), input_shape=input_shape[1:], activation='relu', strides=4))
-        self.model.add(layers.Conv2D(64, (4, 4), activation='relu', strides=2))
-        self.model.add(layers.Conv2D(64, (3, 3), activation='relu', strides=1))
+        self.model.add(layers.experimental.preprocessing.Resizing(
+            224, 224, interpolation="bilinear", input_shape=input_shape[1:]))
+        self.model.add(layers.Conv2D(96, 11, strides=4,
+                       padding='same', input_shape=input_shape[1:]))
+        self.model.add(layers.Activation('relu'))
+        self.model.add(layers.MaxPooling2D(3, strides=2))
+        self.model.add(layers.Conv2D(256, 5, strides=4, padding='same'))
+
+        self.model.add(layers.Activation('relu'))
+        self.model.add(layers.MaxPooling2D(3, strides=2))
+        self.model.add(layers.Conv2D(384, 3, strides=4, padding='same'))
+        self.model.add(layers.Activation('relu'))
+        self.model.add(layers.Conv2D(384, 3, strides=4, padding='same'))
+        self.model.add(layers.Activation('relu'))
+        self.model.add(layers.Conv2D(256, 3, strides=4, padding='same'))
+        self.model.add(layers.Activation('relu'))
         self.model.add(layers.Flatten())
-        self.model.add(layers.Dense(64, activation='relu'))
+        self.model.add(layers.Dense(4096, activation='relu'))
+        self.model.add(layers.Dropout(0.5))
+        self.model.add(layers.Dense(4096, activation='relu'))
+        self.model.add(layers.Dropout(0.5))
         self.model.add(layers.Dense(output_shape))
+        
 
         self.target = keras.models.clone_model(self.model)
         self.target.trainable = False
@@ -109,6 +125,7 @@ class DoubleDeepQNN(tf.keras.Model):
 
     def target(self, inputs):
         return self.target(inputs)
+
 
 
 def batch(tensor, index):
@@ -163,15 +180,15 @@ class DQNNAgent:
         self.net.model.compile(keras.optimizers.Adam(), loss="mse")
         self.net.target.compile(keras.optimizers.Adam(), loss="mse")
 
-        #with open(self.save_directory + "memory.json", "rb") as f:
-        #self.memory = json.load(f)
+        # with open(self.save_directory + "memory.json", "rb") as f:
+        # self.memory = json.load(f)
 
     def save_model(self):
 
-        #with open(self.save_directory + "memory.json", "wb") as f:
+        # with open(self.save_directory + "memory.json", "wb") as f:
         # json.dump(self.memory, f)
 
-        name = os.path.join(self.save_directory, 'tf_model.h5')
+        name = os.path.join(self.save_directory, 'mario_dqn/tf_model.h5')
         self.net.model.compile(keras.optimizers.Adam(), loss="mse")
         self.net.model.save(name)
         print('Checkpoint saved to \'{}\''.format(self.save_directory))
@@ -193,7 +210,7 @@ class DQNNAgent:
         if (self.current_step % self.sync_period) == 0:
             self.net.target.set_weights(self.net.model.get_weights())
 
-        if self.batch_size > len(self.memory) or len(self.memory) < 10000:
+        if self.batch_size > len(self.memory):
             return
 
         state, next_state, action, reward, done = self.recall()
@@ -240,12 +257,12 @@ class DQNNAgent:
 save_directory = "mario_dqn"
 
 
-def train():
-
+def train(load=False):
     agent = DQNNAgent(save_directory, env.action_space.n)
 
-    if exists(os.path.join(save_directory, 'tf_model.h5')):
-        agent.load_checkpoint(os.path.join(save_directory, 'tf_model.h5'))
+    if load:
+        if exists(os.path.join(save_directory, 'mario_dqn/tf_model.h5')):
+            agent.load_checkpoint(os.path.join(save_directory, 'mario_dqn/tf_model.h5'))
     episode = 0
     checkpoint_period = 20
     save_period = checkpoint_period
@@ -253,21 +270,25 @@ def train():
         state = env.reset()
         while True:
             action = agent.act(state)
-            
-            # env.render()
+
+            env.render()
 
             next_state, reward, done, info = env.step(action)
+            reward += info['score'] / 100
+            reward += info['coins']
+            
             agent.remember(state, next_state, action, reward, done)
 
             # perform gradient descent with minibatch
             agent.gradient_descent(reward)
             state = next_state
+
             if done:
                 episode += 1
                 agent.log_episode()
                 if episode % checkpoint_period == 0:
                     if episode % save_period == 0:
-                      agent.save_model()
+                        agent.save_model()
                     agent.log_period(
                         episode=episode,
                         epsilon=agent.exploration_rate,
@@ -278,12 +299,14 @@ def train():
 
 
 def play():
-
     agent = DQNNAgent(save_directory, env.action_space.n)
-    
-    if exists(os.path.join(save_directory, 'tf_model.h5')):
+
+    try:
         agent.load_checkpoint(os.path.join(save_directory, 'tf_model.h5'))
-        
+    except:
+        print("No checkpoint found")
+        exit()
+
     while True:
         state = env.reset()
         done = False
@@ -294,5 +317,5 @@ def play():
             state = next_state
 
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
     train()

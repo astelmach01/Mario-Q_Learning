@@ -26,10 +26,9 @@ checkpoint_period = 20
 
 class QLearningAgent:
 
-    def __init__(self, env, alpha=.1, gamma=.9, exploration_rate=1, exploration_rate_min=.1,
-                 exploration_rate_decay=0.999972, iterations=20000):
+    def __init__(self, env, alpha=.1, gamma=.9, exploration_rate=1, exploration_rate_min=.05, exploration_rate_decay=0.99999, iterations=40000):
 
-        self.env: SkipFrame = SkipFrame(env, skip=5)
+        self.env: SkipFrame = SkipFrame(env, skip=3)
 
         self.alpha = alpha
         self.gamma = gamma
@@ -104,8 +103,9 @@ class QLearningAgent:
         x_s = set()
 
         for i in range(1, self.iterations):
-            state = self.env.reset()
-            next_state, reward, done, info = self.env.step(0)
+            _ = self.env.reset()
+            _, _, _, info = self.env.step(0)
+            state = self.make_state(info)
 
             done = False  # if you died and have 0 lives left
 
@@ -113,20 +113,24 @@ class QLearningAgent:
 
                 # choose action
                 action = self.epsilon_greedy_action(state)
-
+                
                 next_state, reward, done, info = self.env.step(action)
                 next_state = self.make_state(info)
 
                 next_max = self.get_max_value(next_state)
-                self.updateQValue(reward, state, action, next_max)
+                old_value = self.q_values[state][action]
+                
+                self.q_values[state][action] = old_value + self.alpha * (reward + self.gamma * next_max - old_value)
 
                 state = next_state
 
-                if i > self.iterations - 1000:
-                    self.env.render()
+                #self.env.render()
 
                 x_s.add(info["x_pos"])
                 self.current_episode_reward += reward
+                
+                if info['flag_get'] == True:
+                    done = True
 
             self.log_episode()
             if i % checkpoint_period == 0:
