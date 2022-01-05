@@ -11,9 +11,9 @@ from os.path import exists
 import matplotlib.pyplot as plt
 from nes_py.wrappers import JoypadSpace
 import tensorflow as tf
-from tensorflow.keras import datasets, layers, models
+from tensorflow.keras import  layers, models
 from tensorflow import keras
-from keras.models import load_model
+
 
 print(tf.config.list_physical_devices('GPU'))
 
@@ -73,8 +73,8 @@ class TransposeObservation(gym.ObservationWrapper):
 
 env = gym_super_mario_bros.make('SuperMarioBros-1-1-v0')
 env = JoypadSpace(env, [["right"], ["right", "A"]])
-env = TransposeObservation(FrameStack(GrayScaleObservation(
-    SkipFrame(env, skip=4)), num_stack=4))
+env = TransposeObservation(FrameStack(ResizeObservation(GrayScaleObservation(
+    SkipFrame(env, skip=4)), shape=84), num_stack=4))
 env.seed(42)
 env.action_space.seed(42)
 np.random.seed(42)
@@ -84,33 +84,22 @@ if len(state.shape) == 3:
     state = np.expand_dims(state, axis=0)
 
 
+
 class DoubleDeepQNN(tf.keras.Model):
 
     def __init__(self, input_shape, output_shape):
         super(DoubleDeepQNN, self).__init__()
 
         self.model = models.Sequential()
-        self.model.add(layers.experimental.preprocessing.Resizing(
-            224, 224, interpolation="bilinear", input_shape=input_shape[1:]))
         self.model.add(layers.Conv2D(96, 11, strides=4,
-                       padding='same', input_shape=input_shape[1:]))
-        self.model.add(layers.Activation('relu'))
-        self.model.add(layers.MaxPooling2D(3, strides=2))
-        self.model.add(layers.Conv2D(256, 5, strides=4, padding='same'))
+                       padding='same', input_shape=input_shape[1:], activation='relu'))
+        self.model.add(layers.Conv2D(256, 5, strides=4, padding='same', activation='relu'))
+        self.model.add(layers.Conv2D(384, 3, strides=4, padding='same', activation='relu'))
+        self.model.add(layers.Conv2D(384, 3, strides=4, padding='same', activation='relu'))
+        self.model.add(layers.Conv2D(256, 3, strides=4, padding='same', activation='relu'))
 
-        self.model.add(layers.Activation('relu'))
-        self.model.add(layers.MaxPooling2D(3, strides=2))
-        self.model.add(layers.Conv2D(384, 3, strides=4, padding='same'))
-        self.model.add(layers.Activation('relu'))
-        self.model.add(layers.Conv2D(384, 3, strides=4, padding='same'))
-        self.model.add(layers.Activation('relu'))
-        self.model.add(layers.Conv2D(256, 3, strides=4, padding='same'))
-        self.model.add(layers.Activation('relu'))
         self.model.add(layers.Flatten())
         self.model.add(layers.Dense(4096, activation='relu'))
-        self.model.add(layers.Dropout(0.5))
-        self.model.add(layers.Dense(4096, activation='relu'))
-        self.model.add(layers.Dropout(0.5))
         self.model.add(layers.Dense(output_shape))
         
 
@@ -271,17 +260,18 @@ def train(load=False):
         while True:
             action = agent.act(state)
 
-            env.render()
+            #env.render()
 
             next_state, reward, done, info = env.step(action)
-            reward += info['score'] / 100
-            reward += info['coins']
             
             agent.remember(state, next_state, action, reward, done)
 
             # perform gradient descent with minibatch
             agent.gradient_descent(reward)
             state = next_state
+            
+            if info["flag_get"]:
+                done = True
 
             if done:
                 episode += 1
@@ -318,4 +308,7 @@ def play():
 
 
 if __name__ == "__main__":
-    train()
+    x = DoubleDeepQNN(state.shape, env.action_space.n)
+    x.build((1, 84, 84, 4))
+    print(x.summary())
+    train(True)
