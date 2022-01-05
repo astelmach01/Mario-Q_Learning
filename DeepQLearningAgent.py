@@ -219,7 +219,7 @@ class DQNNAgent:
                 zip(grads, self.net.trainable_weights))
 
     def act(self, state):
-        if np.random.rand() < self.exploration_rate:
+        if random.random() < self.exploration_rate:
             action = random.randrange(0, self.action_space)
 
         else:
